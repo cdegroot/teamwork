@@ -1,0 +1,60 @@
+* Teamwork notes
+** Google auth
+We need to read the client ID:
+#+BEGIN_SRC elixir
+{:ok, json} = File.read("/Users/cees/.teamwork_client_id.json")
+{:ok, client} = Poison.Parser.parse(json)
+#+END_SRC
+Then we can fetch and display the authorization link according to this example:
+#+BEGIN_SRC shell
+POST /o/oauth2/device/code HTTP/1.1
+Host: accounts.google.com
+Content-Type: application/x-www-form-urlencoded
+
+client_id=client_id&
+scope=email%20profile
+#+END_SRC
+Using HTTPoison:
+#+BEGIN_SRC elixir
+client_id = client["installed"]["client_id"]
+body = "client_id=#{client_id}&scope=email%20profile%20https://www.googleapis.com/auth/calendar.readonly"
+{:ok, result} = HTTPoison.post("https://accounts.google.com/o/oauth2/device/code", body, [{"Content-Type", "application/x-www-form-urlencoded"}])
+#+END_SRC
+The Response structure contains a URL and a user code that we need to display after we've parsed it
+#+BEGIN_SRC elixir
+{:ok, response_body} = Poison.Parser.parse(result.body)
+IO.puts("Please go to this URL:\n\n#{response_body["verification_url"]}\n\nEnter this verification code:\n\n#{response_body["user_code"]}\n\nAfter login.")
+#+END_SRC
+We then fetch the code from Google, example:
+#+BEGIN_SRC shell
+POST /oauth2/v4/token HTTP/1.1
+Host: www.googleapis.com
+Content-Type: application/x-www-form-urlencoded
+
+client_id=client_id&
+client_secret=client_secret&
+code=device_code&
+grant_type=http://oauth.net/grant_type/device/1.0
+#+END_SRC
+So in Elixir:
+#+BEGIN_SRC elixir
+client_secret = client["installed"]["client_secret"]
+code = response_body["device_code"]
+{:ok, auth_response} = HTTPoison.post("https://www.googleapis.com/oauth2/v4/token", "client_id=#{client_id}&client_secret=#{client_secret}&code=#{code}&grant_type=http://oauth.net/grant_type/device/1.0", [{"Content-Type", "application/x-www-form-urlencoded"}])
+{:ok, auth} = Poison.Parser.parse(auth_response.body)
+#+END_SRC
+We not have an access token and refresh token that we can use in the format:
+#+BEGIN_SRC elixir
+%{"access_token" => "...",
+  "expires_in" => 3600,
+  "id_token" => "....",
+  "refresh_token" => "....",
+  "token_type" => "Bearer"}
+#+END_SRC
+** TODO refresh the access token in a GenServer that ticks ever 15 minutes or so
+** Accessing the Calendar API
+That is quite simple. List all events for example:
+#+BEGIN_SRC elixir
+
+
+#+END_SRC
